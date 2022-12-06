@@ -123,7 +123,8 @@ const char *flow_str[] = {
 #define M_LFHEX   (1 << 11) /* map LF --> hex */
 #define M_8BITHEX (1 << 12) /* map 8-bit chars --> hex */
 #define M_NRMHEX  (1 << 13) /* map normal ascii chars --> hex */
-#define M_NFLAGS 14
+#define M_FNPUTTY (1 << 14) /* map function keys --> ESC[n~ (like PuTTY) */
+#define M_NFLAGS 15
 
 /* default character mappings */
 #define M_I_DFL 0
@@ -149,6 +150,7 @@ struct map_names_s {
     { "lfhex", M_LFHEX },
     { "8bithex", M_8BITHEX },
     { "nrmhex", M_NRMHEX },
+    { "fnputty", M_FNPUTTY },
     /* Sentinel */
     { NULL, 0 }
 };
@@ -730,7 +732,7 @@ fatal (const char *format, ...)
 
 /* maximum number of chars that can replace a single characted
    due to mapping */
-#define M_MAXMAP 4
+#define M_MAXMAP 5
 
 int
 map2hex (char *b, char c)
@@ -747,6 +749,8 @@ map2hex (char *b, char c)
 int
 do_map (char *b, int map, char c)
 {
+    static int esc_mapping = 0;
+    static int fn_mapping = 0;
     int n = -1;
 
     switch (c) {
@@ -792,8 +796,35 @@ do_map (char *b, int map, char c)
             n = map2hex(b,c);
         }
         break;
+    case '\x1b':
+        if ( map & M_FNPUTTY) {
+            /* ESC mappings */
+            esc_mapping = 1;
+            return 0;
+        }
+        break;
     default:
         break;
+    }
+
+    if (esc_mapping) {
+        esc_mapping = 0;
+        if ( c == 'O' ) {
+            fn_mapping = 1;
+        }
+        return 0;
+    }
+
+    if (fn_mapping) {
+        fn_mapping = 0;
+        if ( c >= 'P' && c <= 'S' ) {
+            b[0] = '\x1b';
+            b[1] = '[';
+            b[2] = '1';
+            b[3] = '1' + (c - 'P');
+            b[4] = '~';
+            n = 5;
+        }
     }
 
     if ( n < 0 && map & M_SPCHEX ) {
@@ -1674,6 +1705,7 @@ show_usage(char *name)
     printf("  lfhex : map LF --> hex\n");
     printf("  8bithex : map 8-bit chars --> hex\n");
     printf("  nrmhex : map normal ascii chars --> hex\n");
+    printf("  fnputty : map F1 through F4 like PuTTY does (ESC[n~)\n");
     printf("<?> indicates the equivalent short option.\n");
     printf("Short options are prefixed by \"-\" instead of by \"--\".\n");
 #else /* defined NO_HELP */
