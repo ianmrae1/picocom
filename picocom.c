@@ -811,8 +811,12 @@ do_map (char *b, int map, char c)
         esc_mapping = 0;
         if ( c == 'O' ) {
             fn_mapping = 1;
+            return 0;
+        } else {
+            b[0] = '\x1b';
+            b[1] = c;
+            return 2;
         }
-        return 0;
     }
 
     if (fn_mapping) {
